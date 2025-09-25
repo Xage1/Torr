@@ -27,18 +27,18 @@
         "zod": "^3.22.2"
     },
     "devDependencies": {
-        "prisma": "^5.0.0",
-        "ts-node-dev": "^2.0.0",
-        "typescript": "^5.0.0",
+        "@types/bcrypt": "^5.0.0",
         "@types/express": "^4.17.17",
+        "@types/jest": "^29.0.0",
         "@types/jsonwebtoken": "^9.0.2",
         "@types/node": "^20.0.0",
-        "@types/bcrypt": "^5.0.0",
-        "eslint": "^8.40.0",
-        "@typescript-eslint/parser": "^6.0.0",
         "@typescript-eslint/eslint-plugin": "^6.0.0",
+        "@typescript-eslint/parser": "^6.0.0",
+        "eslint": "^8.40.0",
         "jest": "^29.0.0",
+        "prisma": "^5.0.0",
         "ts-jest": "^29.0.0",
-        "@types/jest": "^29.0.0"
+        "ts-node-dev": "^2.0.0",
+        "typescript": "^5.0.0"
     }
 }
