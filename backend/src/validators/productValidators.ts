@@ -16,9 +16,9 @@ export const createProductSchema = z.object({
 export const updateProductSchema = z.object({
   title: z.string().min(2).optional(),
   description: z.string().optional(),
-  price: z.union([z.string(), z.number()]).transform((v) => Number(v)).optional().refine((v) => !Number.isNaN(v) && v >= 0, {
+  price: z.union([z.string(), z.number()]).transform((v) => Number(v)).refine((v) => !Number.isNaN(v) && v >= 0, {
     message: "price must be a non-negative number"
-  }),
+  }).optional(),
   stock: z.number().int().nonnegative().optional(),
   category: z.string().optional(),
   source: z.string().optional(),
