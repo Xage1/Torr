@@ -13,7 +13,7 @@ export const OrderSchema = z.object({
   items: z.array(OrderItemSchema),
   totalAmount: z.number().positive(),
   status: z.enum(["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"]),
-  createdAt: z.string().datetime(),
+  createdAt: z.string().datetime({ offset: true }),
 });
 
 export const CreateOrderSchema = OrderSchema.omit({ id: true, createdAt: true });
