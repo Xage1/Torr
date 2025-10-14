@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "../config/openapi.js";
 import { uuidSchema } from "./commonSchemas";
 
 
@@ -12,7 +12,7 @@ export const OrderSchema = z.object({
   userId: uuidSchema,
   items: z.array(OrderItemSchema),
   totalAmount: z.number().positive(),
-  status: z.enum(["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"]),
+  status: z.enum(["PENDING", "CONFIRMED", "PAID", "SHIPPED", "DELIVERED", "CANCELLED"]),
   createdAt: z.string().datetime({ offset: true }),
 });
 

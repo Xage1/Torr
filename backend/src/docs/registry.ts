@@ -1,10 +1,17 @@
-import { OpenAPIRegistry } from "@asteasolutions/zod-to-openapi";
-import * as productSchemas from "./productSchemas.js";
-import * as userSchemas from "./userSchemas.js";
-import * as authSchemas from "./authSchemas.js";
-import * as orderSchemas from "./orderSchemas.js";
-import * as paymentSchemas from "./paymentSchemas.js";
-import * as commonSchemas from "./commonSchemas.js";
+// src/docs/registry.ts
+import { z } from "zod";
+import { OpenAPIRegistry, extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
+
+// ✅ Must run before any schemas are imported
+extendZodWithOpenApi(z);
+
+// Import schemas AFTER OpenAPI extension is applied
+import * as productSchemas from "../schemas/productSchemas.js";
+import * as userSchemas from "../schemas/userSchemas.js";
+import * as authSchemas from "../schemas/authSchemas.js";
+import * as orderSchemas from "../schemas/orderSchemas.js";
+import * as paymentSchemas from "../schemas/paymentSchemas.js";
+import * as commonSchemas from "../schemas/commonSchemas.js";
 
 export const registry = new OpenAPIRegistry();
 
@@ -18,17 +25,23 @@ const schemaGroups = {
   commonSchemas,
 };
 
-// Iterate and register all Zod schemas safely
+// Register all schemas safely
 for (const [groupName, group] of Object.entries(schemaGroups)) {
   for (const [schemaName, schemaValue] of Object.entries(group)) {
-    // Only register if it’s a Zod schema (has ._def)
     if (
       schemaValue &&
       typeof schemaValue === "object" &&
       "_def" in schemaValue &&
       typeof schemaValue._def === "object"
     ) {
-      registry.register(`${groupName}.${schemaName}`, schemaValue as any);
+      try {
+        registry.register(`${groupName}.${schemaName}`, schemaValue as any);
+      } catch (err) {
+        console.warn(
+          `⚠️ Failed to register schema ${groupName}.${schemaName}:`,
+          (err as Error).message
+        );
+      }
     }
   }
 }

@@ -1,5 +1,5 @@
-import { email, z } from "zod";
-
+import { z } from "../config/openapi.js";
+import { email } from "zod";
 
 export const UserSchema = z.object({
     id: z.string().uuid(),

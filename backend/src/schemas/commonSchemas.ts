@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "../config/openapi.js";
 
 // ✅ Reusable UUID validator (replaces deprecated .uuid())
 export const uuidSchema = z

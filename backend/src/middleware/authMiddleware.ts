@@ -27,62 +27,49 @@ export async function authMiddleware(
                 .json({ success: false, message: "Authorization required" });
         }
 
-        const token = header.slice(7).trim(); // remove "Bearer "
-
-        // Ensure secret exists at runtime. This narrows `secret` to `string` for TS.
+        const token = header.slice(7).trim();
         const secret = env.JWT_SECRET;
         if (!secret) {
-            console.error("JWT_SECRET is not set in environment");
+            console.error("JWT_SECRET missing from env");
             return res
                 .status(500)
                 .json({ success: false, message: "Server misconfiguration" });
         }
 
-        // jwt.verify returns string | JwtPayload
         let decoded: string | JwtPayload;
         try {
             decoded = jwt.verify(token, secret);
-        } catch (verifyErr) {
+        } catch {
             return res
                 .status(401)
                 .json({ success: false, message: "Invalid or expired token" });
         }
 
-        // We require an object payload that contains userId
         if (!decoded || typeof decoded !== "object") {
             return res
                 .status(401)
                 .json({ success: false, message: "Invalid token payload" });
         }
 
-        // Extract userId robustly (token might contain userId as string or number)
-        const maybeUserId = (decoded as any).userId;
-        const userId =
-            typeof maybeUserId === "string"
-                ? parseInt(maybeUserId, 10)
-                : typeof maybeUserId === "number"
-                    ? maybeUserId
-                    : NaN;
-
+        const userId = Number((decoded as any).userId);
         if (!userId || Number.isNaN(userId)) {
             return res
                 .status(401)
                 .json({ success: false, message: "Invalid token payload (userId)" });
         }
 
-        // Fetch minimal user fields
         const user = await prisma.user.findUnique({
             where: { id: userId },
             select: { id: true, email: true, role: true },
         });
 
         if (!user) {
-            return res.status(401).json({ success: false, message: "Invalid token" });
+            return res
+                .status(401)
+                .json({ success: false, message: "Invalid or deleted user" });
         }
 
-        // Attach typed user to request
-        req.user = { id: user.id, email: user.email, role: user.role };
-
+        req.user = user;
         return next();
     } catch (err) {
         console.error("authMiddleware error:", err);
@@ -90,4 +77,24 @@ export async function authMiddleware(
             .status(500)
             .json({ success: false, message: "Internal server error" });
     }
+}
+
+/**
+ * Require a specific role to access route.
+ * Example usage: router.get("/admin", requireRole("ADMIN"), handler)
+ */
+export function requireRole(role: string) {
+    return (req: AuthRequest, res: Response, next: NextFunction) => {
+        if (!req.user) {
+            return res
+                .status(401)
+                .json({ success: false, message: "Unauthorized access" });
+        }
+        if (req.user.role !== role) {
+            return res
+                .status(403)
+                .json({ success: false, message: "Forbidden: insufficient permissions" });
+        }
+        next();
+    };
 }

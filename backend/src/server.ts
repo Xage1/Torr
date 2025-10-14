@@ -2,6 +2,8 @@ import app from "./app";
 import env from "./config/env";
 import prisma from "./config/prisma";
 
+import { z } from "./config/openapi.js";
+
 const port = env.PORT || 4000;
 
 async function start() {
@@ -17,5 +19,7 @@ async function start() {
         process.exit(1);
     }
 }
+
+console.log("✅ zod-to-openapi patched:", typeof z.string().openapi);
 
 start();

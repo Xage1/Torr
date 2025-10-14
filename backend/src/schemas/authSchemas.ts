@@ -1,5 +1,6 @@
 import { access } from "fs";
-import { email, z } from "zod";
+import { z } from "../config/openapi.js";
+import { email } from "zod";
 
 export const RegisterSchema = z.object({
     name: z.string(),
