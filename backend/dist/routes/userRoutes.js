@@ -1,40 +1,83 @@
+// src/routes/userRoutes.ts
 import express from "express";
 import { registry } from "../docs/registry.js";
-import { authMiddleware } from "../middleware/authMiddleware.js";
-import { getUserProfile, updateUserProfile, deleteUserAccount } from "../controllers/userController.js";
-import { UpdateUserSchema } from "../schemas/userSchemas.js";
-const router = express.Router();
-router.use(authMiddleware);
+import { authMiddleware, requireRole } from "../middleware/authMiddleware.js";
+import { getUserProfile, updateUserProfile, getAllUsers, deleteUserAccount, } from "../controllers/userController.js";
+const userRouter = express.Router();
+// TS FIX: Middleware typing conflicts → use `as any` to satisfy Express type system
+const auth = authMiddleware;
+const adminOnly = requireRole("ADMIN");
+// ─────────────────────────────────────────────
+// 📘 Get authenticated user profile
+// ─────────────────────────────────────────────
 registry.registerPath({
     method: "get",
     path: "/users/me",
-    tags: ["User"],
-    summary: "Get user profile",
-    responses: { 200: { description: "Profile fetched" } },
+    tags: ["Users"],
+    summary: "Get authenticated user profile",
+    responses: {
+        200: { description: "User profile returned" },
+        401: { description: "Unauthorized" },
+    },
 });
+userRouter.get("/me", auth, getUserProfile);
+// ─────────────────────────────────────────────
+// ✏️ Update user profile
+// ─────────────────────────────────────────────
 registry.registerPath({
     method: "put",
     path: "/users/me",
-    tags: ["User"],
+    tags: ["Users"],
     summary: "Update user profile",
     requestBody: {
         content: {
             "application/json": {
-                schema: registry.register("UpdateUserSchema", UpdateUserSchema),
+                schema: { $ref: "#/components/schemas/UpdateUserSchema" },
             },
         },
     },
-    responses: { 200: { description: "Profile updated" } },
+    responses: {
+        200: { description: "Profile updated" },
+        400: { description: "Validation error" },
+        401: { description: "Unauthorized" },
+    },
 });
+userRouter.put("/me", auth, updateUserProfile);
+// ─────────────────────────────────────────────
+// 👑 Admin: Get all users
+// ─────────────────────────────────────────────
+registry.registerPath({
+    method: "get",
+    path: "/admin/users",
+    tags: ["Admin"],
+    summary: "Admin: Get all users",
+    responses: {
+        200: { description: "List of all users" },
+        403: { description: "Forbidden" },
+    },
+});
+userRouter.get("/admin/users", auth, adminOnly, getAllUsers);
+// ─────────────────────────────────────────────
+// ❌ Admin: Delete/deactivate user
+// ─────────────────────────────────────────────
 registry.registerPath({
     method: "delete",
-    path: "/users/me",
-    tags: ["User"],
-    summary: "Delete user account",
-    responses: { 200: { description: "Account deleted" } },
+    path: "/admin/users/{userId}",
+    tags: ["Admin"],
+    summary: "Admin: Delete or deactivate user",
+    parameters: [
+        {
+            name: "userId",
+            in: "path",
+            required: true,
+            schema: { type: "integer" },
+        },
+    ],
+    responses: {
+        200: { description: "User deleted or deactivated" },
+        403: { description: "Forbidden" },
+    },
 });
-router.get("/me", getUserProfile);
-router.put("/me", updateUserProfile);
-router.delete("/me", deleteUserAccount);
-export default router;
+userRouter.delete("/admin/users/:userId", auth, adminOnly, deleteUserAccount);
+export default userRouter;
 //# sourceMappingURL=userRoutes.js.map

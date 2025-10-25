@@ -1,31 +1,94 @@
-// src/controllers/userController.ts
 import { Request, Response } from "express";
 import prisma from "../config/prisma.js";
 import { UpdateUserSchema } from "../schemas/userSchemas.js";
+import { AuthRequest } from "../middleware/authMiddleware.js";
 
-export const getUserProfile = async (req: Request, res: Response) => {
-    const auth = req as any;
-    if (!auth.user?.id) return res.status(401).json({ success: false, message: "Unauthorized" });
-    const user = await prisma.user.findUnique({ where: { id: auth.user.id }, select: { id: true, name: true, email: true, phone: true, role: true, createdAt: true } });
-    return res.json({ success: true, data: user });
+/**
+ * Get authenticated user profile
+ */
+export const getUserProfile = async (req: AuthRequest, res: Response) => {
+  if (!req.user?.id)
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      role: true,
+      createdAt: true,
+    },
+  });
+
+  return res.json({ success: true, data: user });
 };
 
-export const updateUserProfile = async (req: Request, res: Response) => {
-    try {
-        const validated = UpdateUserSchema.parse(req.body);
-        const auth = req as any;
-        if (!auth.user?.id) return res.status(401).json({ success: false, message: "Unauthorized" });
-        const updated = await prisma.user.update({ where: { id: auth.user.id }, data: validated });
-        return res.json({ success: true, data: updated });
-    } catch (err: any) {
-        console.error(err);
-        return res.status(400).json({ success: false, message: err?.message || "Failed" });
-    }
+/**
+ * Update authenticated user's profile
+ */
+export const updateUserProfile = async (req: AuthRequest, res: Response) => {
+  try {
+    const validated = UpdateUserSchema.parse(req.body);
+
+    if (!req.user?.id)
+      return res.status(401).json({ success: false, message: "Unauthorized" });
+
+    const updated = await prisma.user.update({
+      where: { id: req.user.id },
+      data: validated,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+
+    return res.json({ success: true, data: updated });
+  } catch (err: any) {
+    console.error(err);
+    return res
+      .status(400)
+      .json({ success: false, message: err?.message || "Validation failed" });
+  }
 };
 
-export const deleteUserAccount = async (req: Request, res: Response) => {
-    const auth = req as any;
-    if (!auth.user?.id) return res.status(401).json({ success: false, message: "Unauthorized" });
-    await prisma.user.delete({ where: { id: auth.user.id } });
-    return res.json({ success: true, message: "Deleted" });
+/**
+ * ADMIN ONLY – Get all users
+ */
+export const getAllUsers = async (req: AuthRequest, res: Response) => {
+  if (req.user?.role !== "ADMIN") {
+    return res
+      .status(403)
+      .json({ success: false, message: "Forbidden: Admin access required" });
+  }
+
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      role: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return res.json({ success: true, data: users });
+};
+
+/**
+ * Delete or deactivate current user (self)
+ */
+export const deleteUserAccount = async (req: AuthRequest, res: Response) => {
+  if (!req.user?.id)
+    return res.status(401).json({ success: false, message: "Unauthorized" });
+
+  await prisma.user.delete({ where: { id: req.user.id } });
+  return res.json({ success: true, message: "Account deleted" });
 };

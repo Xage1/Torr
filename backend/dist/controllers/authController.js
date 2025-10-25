@@ -1,7 +1,7 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
-import { env } from "../config/env.js";
+import env from "../config/env.js";
 import { RegisterSchema, LoginSchema, ChangePasswordSchema } from "../schemas/authSchemas.js";
 import { whitelist } from "../config/whitelist.js";
 export const register = async (req, res) => {

@@ -1,70 +1,73 @@
-import express from "express";
+import { Router } from "express";
+import { registry } from "../docs/registry.js";
+import { CreateProductSchema, UpdateProductSchema } from "../schemas/productSchemas.js";
 import {
-    getProduct,
-    createProduct,
-    updateProduct,
-    deleteProduct,
+  listProducts,
+  getProduct,
+  createProduct,
+  updateProduct,
+  deleteProduct,
 } from "../controllers/productController.js";
-import { registry } from "../config/openapi.js";
-import {
-    CreateProductSchema,
-    UpdateProductSchema,
-} from "../schemas/productSchemas.js";
 
-const router = express.Router();
+export const productRouter = Router();
 
+// ✅ Swagger: List products
 registry.registerPath({
-    method: "get",
-    path: "/products",
-    summary: "Get all products",
-    responses: { 200: { description: "List of products" } },
+  method: "get",
+  path: "/products",
+  summary: "List all products",
+  responses: { 200: { description: "Products listed" } },
 });
+productRouter.get("/", listProducts);
 
+// ✅ Swagger: Get product by ID
 registry.registerPath({
-    method: "get",
-    path: "/products/{id}",
-    summary: "Get product by ID",
-    responses: { 200: { description: "Product details" } },
+  method: "get",
+  path: "/products/{id}",
+  summary: "Get product by ID",
+  parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+  responses: { 200: { description: "Product details" } },
 });
+productRouter.get("/:id", getProduct);
 
+// ✅ Swagger: Create product
 registry.registerPath({
-    method: "post",
-    path: "/products",
-    summary: "Create new product",
-    requestBody: {
-        content: {
-            "application/json": {
-                schema: { $ref: registry.register("CreateProductSchema", CreateProductSchema) },
-            },
-        },
+  method: "post",
+  path: "/products",
+  summary: "Create new product",
+  requestBody: {
+    content: {
+      "application/json": {
+        schema: { $ref: "#/components/schemas/CreateProductSchema" },
+      },
     },
-    responses: { 201: { description: "Product created" } },
+  },
+  responses: { 201: { description: "Product created" } },
 });
+productRouter.post("/", createProduct);
 
+// ✅ Swagger: Update product
 registry.registerPath({
-    method: "put",
-    path: "/products/{id}",
-    summary: "Update existing product",
-    requestBody: {
-        content: {
-            "application/json": {
-                schema: { $ref: registry.register("UpdateProductSchema", UpdateProductSchema) },
-            },
-        },
+  method: "put",
+  path: "/products/{id}",
+  summary: "Update product",
+  requestBody: {
+    content: {
+      "application/json": {
+        schema: { $ref: "#/components/schemas/UpdateProductSchema" },
+      },
     },
-    responses: { 200: { description: "Product updated" } },
+  },
+  responses: { 200: { description: "Product updated" } },
 });
+productRouter.put("/:id", updateProduct);
 
+// ✅ Swagger: Delete product
 registry.registerPath({
-    method: "delete",
-    path: "/products/{id}",
-    summary: "Delete product",
-    responses: { 200: { description: "Product deleted" } },
+  method: "delete",
+  path: "/products/{id}",
+  summary: "Delete product",
+  parameters: [{ name: "id", in: "path", required: true, schema: { type: "integer" } }],
+  responses: { 200: { description: "Product deleted" } },
 });
-
-router.get("/", getProduct);
-router.post("/", createProduct);
-router.put("/:id", updateProduct);
-router.delete("/:id", deleteProduct);
-
-export default router;
+productRouter.delete("/:id", deleteProduct);

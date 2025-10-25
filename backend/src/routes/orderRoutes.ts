@@ -1,44 +1,67 @@
-import express from "express";
-import {
-    createOrder,
-    getAllOrders,
-    getOrderById,
-} from "../controllers/orderController.js";
-import { registry } from "../config";
+import { Router } from "express";
+import { registry } from "../docs/registry.js";
 import { CreateOrderSchema } from "../schemas/orderSchemas.js";
+import {
+  createOrder,
+  getAllOrders,
+  getOrderById,
+  updateOrderStatus,
+  deleteOrder,
+} from "../controllers/orderController.js";
 
-const router = express.Router();
+export const orderRouter = Router();
 
+// ✅ Swagger: Create order
 registry.registerPath({
-    method: "get",
-    path: "/orders",
-    summary: "Get all orders",
-    responses: { 200: { description: "List of orders" } },
-});
-
-registry.registerPath({
-    method: "get",
-    path: "/orders/{id}",
-    summary: "Get order by ID",
-    responses: { 200: { description: "Order details" } },
-});
-
-registry.registerPath({
-    method: "post",
-    path: "/orders",
-    summary: "Create new order",
-    requestBody: {
-        content: {
-            "application/json": {
-                schema: { $ref: registry.register("CreateOrderSchema", CreateOrderSchema) },
-            },
-        },
+  method: "post",
+  path: "/orders",
+  summary: "Create a new order",
+  requestBody: {
+    content: {
+      "application/json": {
+        schema: { $ref: "#/components/schemas/CreateOrderSchema" },
+      },
     },
-    responses: { 201: { description: "Order created" } },
+  },
+  responses: { 201: { description: "Order created" } },
 });
+orderRouter.post("/", createOrder);
 
-router.get("/", getAllOrders);
-router.get("/:id", getOrderById);
-router.post("/", createOrder);
+// ✅ Swagger: Get all orders
+registry.registerPath({
+  method: "get",
+  path: "/orders",
+  summary: "Get user orders",
+  responses: { 200: { description: "List of orders" } },
+});
+orderRouter.get("/", getAllOrders);
 
-export default router;
+// ✅ Swagger: Get single order
+registry.registerPath({
+  method: "get",
+  path: "/orders/{orderId}",
+  summary: "Get order by ID",
+  parameters: [{ name: "orderId", in: "path", required: true, schema: { type: "integer" } }],
+  responses: { 200: { description: "Order details" } },
+});
+orderRouter.get("/:orderId", getOrderById);
+
+// ✅ Swagger: Update order
+registry.registerPath({
+  method: "put",
+  path: "/orders/{orderId}",
+  summary: "Update order status",
+  parameters: [{ name: "orderId", in: "path", required: true, schema: { type: "integer" } }],
+  responses: { 200: { description: "Order updated" } },
+});
+orderRouter.put("/:orderId", updateOrderStatus);
+
+// ✅ Swagger: Delete order
+registry.registerPath({
+  method: "delete",
+  path: "/orders/{orderId}",
+  summary: "Delete order",
+  parameters: [{ name: "orderId", in: "path", required: true, schema: { type: "integer" } }],
+  responses: { 200: { description: "Order deleted" } },
+});
+orderRouter.delete("/:orderId", deleteOrder);

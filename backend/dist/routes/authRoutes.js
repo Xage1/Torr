@@ -1,54 +1,50 @@
-import express from "express";
+import { Router } from "express";
 import { registry } from "../docs/registry.js";
-import { register, login, changePassword } from "../controllers/authController.js";
-import { RegisterSchema, LoginSchema, ChangePasswordSchema } from "../schemas/authSchemas.js";
-import { authMiddleware } from "../middleware/authMiddleware.js";
-const router = express.Router();
-// Swagger docs
+import { register, login, changePassword, } from "../controllers/authController.js";
+export const authRouter = Router();
+// ✅ Swagger: Register
 registry.registerPath({
     method: "post",
     path: "/auth/register",
-    tags: ["Auth"],
-    summary: "Register a new user",
+    summary: "Register new user",
     requestBody: {
         content: {
             "application/json": {
-                schema: registry.register("RegisterSchema", RegisterSchema),
+                schema: { $ref: "#/components/schemas/RegisterSchema" },
             },
         },
     },
-    responses: { 201: { description: "User created" } },
+    responses: { 201: { description: "User registered" } },
 });
+authRouter.post("/register", register);
+// ✅ Swagger: Login
 registry.registerPath({
     method: "post",
     path: "/auth/login",
-    tags: ["Auth"],
     summary: "Login user",
     requestBody: {
         content: {
             "application/json": {
-                schema: registry.register("LoginSchema", LoginSchema),
+                schema: { $ref: "#/components/schemas/LoginSchema" },
             },
         },
     },
-    responses: { 200: { description: "Login successful" } },
+    responses: { 200: { description: "Authenticated" } },
 });
+authRouter.post("/login", login);
+// ✅ Swagger: Change password
 registry.registerPath({
     method: "post",
     path: "/auth/change-password",
-    tags: ["Auth"],
     summary: "Change user password",
     requestBody: {
         content: {
             "application/json": {
-                schema: registry.register("ChangePasswordSchema", ChangePasswordSchema),
+                schema: { $ref: "#/components/schemas/ChangePasswordSchema" },
             },
         },
     },
     responses: { 200: { description: "Password changed" } },
 });
-router.post("/register", register);
-router.post("/login", login);
-router.post("/change-password", authMiddleware, changePassword);
-export default router;
+authRouter.post("/change-password", changePassword);
 //# sourceMappingURL=authRoutes.js.map

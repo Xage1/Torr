@@ -1,54 +1,54 @@
-import express from "express";
+import { Router } from "express";
+import { registry } from "../docs/registry.js";
 import {
-    createPayment,
-    refundPayment,
-    getUserPayments,
-} from "../controllers/paymentController.js";
-import { registry } from "../config/openapi.js";
-import {
-    CreatePaymentSchema,
-    RefundPaymentSchema,
+  CreatePaymentSchema,
+  RefundPaymentSchema,
 } from "../schemas/paymentSchemas.js";
+import {
+  createPayment,
+  refundPayment,
+  getUserPayments,
+} from "../controllers/paymentController.js";
 
-const router = express.Router();
+export const paymentRouter = Router();
 
+// ✅ Swagger: Create payment
 registry.registerPath({
-    method: "get",
-    path: "/payments",
-    summary: "Get all payments",
-    responses: { 200: { description: "List of payments" } },
-});
-
-registry.registerPath({
-    method: "post",
-    path: "/payments",
-    summary: "Create new payment",
-    requestBody: {
-        content: {
-            "application/json": {
-                schema: { $ref: registry.register("CreatePaymentSchema", CreatePaymentSchema) },
-            },
-        },
+  method: "post",
+  path: "/payments",
+  summary: "Create payment",
+  requestBody: {
+    content: {
+      "application/json": {
+        schema: { $ref: "#/components/schemas/CreatePaymentSchema" },
+      },
     },
-    responses: { 201: { description: "Payment created" } },
+  },
+  responses: { 201: { description: "Payment created" } },
 });
+paymentRouter.post("/", createPayment);
 
+// ✅ Swagger: Refund
 registry.registerPath({
-    method: "post",
-    path: "/payments/refund",
-    summary: "Refund a payment",
-    requestBody: {
-        content: {
-            "application/json": {
-                schema: { $ref: registry.register("RefundPaymentSchema", RefundPaymentSchema) },
-            },
-        },
+  method: "post",
+  path: "/payments/refund",
+  summary: "Refund a payment",
+  requestBody: {
+    content: {
+      "application/json": {
+        schema: { $ref: "#/components/schemas/RefundPaymentSchema" },
+      },
     },
-    responses: { 200: { description: "Payment refunded" } },
+  },
+  responses: { 200: { description: "Payment refunded" } },
 });
+paymentRouter.post("/refund", refundPayment);
 
-router.get("/", getUserPayments);
-router.post("/", createPayment);
-router.post("/refund", refundPayment);
-
-export default router;
+// ✅ Swagger: Get all
+registry.registerPath({
+  method: "get",
+  path: "/payments",
+  summary: "Get all payments (admin)",
+  responses: { 200: { description: "List of payments" } },
+});
+paymentRouter.get("/", getUserPayments);
