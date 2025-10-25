@@ -1,25 +1,55 @@
-// src/routes/adminRoutes.ts
 import express from "express";
-import { getAllUsers, deactivateUser, getAllOrders, getAllPayments, systemStats } from "../controllers/adminController.js";
-import { authMiddleware, requireRole } from "../middleware/authMiddleware.js";
+import {
+    getAllUsers,
+    deactivateUser,
+    getAllOrders,
+    getAllPayments,
+    systemStats,
+} from "../controllers/adminController.js";
 import { registry } from "../docs/registry.js";
+import { z } from "../config/openapi.js"
 
 const router = express.Router();
-router.use(authMiddleware, requireRole("ADMIN"));
 
-registry.registerPath({ method: "get", path: "/admin/users", summary: "Admin - list users", responses: { 200: { description: "OK" } } });
+registry.registerPath({
+    method: "get",
+    path: "/admin/users",
+    summary: "Get all users (Admin only)",
+    responses: { 200: { description: "List of all users" } },
+});
+
+registry.registerPath({
+    method: "patch",
+    path: "/admin/users/{userId}/deactivate",
+    summary: "Deactivate a user (Admin only)",
+    responses: { 200: { description: "User deactivated" } },
+});
+
+registry.registerPath({
+    method: "get",
+    path: "/admin/orders",
+    summary: "Get all orders (Admin only)",
+    responses: { 200: { description: "List of all orders" } },
+});
+
+registry.registerPath({
+    method: "get",
+    path: "/admin/payments",
+    summary: "Get all payments (Admin only)",
+    responses: { 200: { description: "List of all payments" } },
+});
+
+registry.registerPath({
+    method: "get",
+    path: "/admin/stats",
+    summary: "System statistics (Admin only)",
+    responses: { 200: { description: "System stats summary" } },
+});
+
 router.get("/users", getAllUsers);
-
-registry.registerPath({ method: "post", path: "/admin/users/:userId/deactivate", summary: "Deactivate user", responses: { 200: { description: "OK" } } });
-router.post("/users/:userId/deactivate", deactivateUser);
-
-registry.registerPath({ method: "get", path: "/admin/orders", summary: "Admin - list orders", responses: { 200: { description: "OK" } } });
+router.patch("/users/:userId/deactivate", deactivateUser);
 router.get("/orders", getAllOrders);
-
-registry.registerPath({ method: "get", path: "/admin/payments", summary: "Admin - list payments", responses: { 200: { description: "OK" } } });
 router.get("/payments", getAllPayments);
-
-registry.registerPath({ method: "get", path: "/admin/stats", summary: "System stats", responses: { 200: { description: "OK" } } });
 router.get("/stats", systemStats);
 
 export default router;

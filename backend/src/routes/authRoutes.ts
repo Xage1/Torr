@@ -1,59 +1,67 @@
 import express from "express";
-import { registry } from "../docs/registry.js";
-import { register, login, changePassword } from "../controllers/authController.js";
-import { RegisterSchema, LoginSchema, ChangePasswordSchema } from "../schemas/authSchemas.js";
-import { authMiddleware } from "../middleware/authMiddleware.js";
+import { registry } from "../config/openapi.js";
+import {
+    register,
+    login,
+    changePassword,
+} from "../controllers/authController.js";
+import {
+    RegisterSchema,
+    LoginSchema,
+    ChangePasswordSchema,
+} from "../schemas/authSchemas.js";
 
 const router = express.Router();
 
-// Swagger docs
 registry.registerPath({
     method: "post",
     path: "/auth/register",
-    tags: ["Auth"],
     summary: "Register a new user",
     requestBody: {
         content: {
             "application/json": {
-                schema: registry.register("RegisterSchema", RegisterSchema),
+                schema: { $ref: registry.register("RegisterSchema", RegisterSchema) },
             },
         },
     },
-    responses: { 201: { description: "User created" } },
+    responses: { 201: { description: "User registered successfully" } },
 });
 
 registry.registerPath({
     method: "post",
     path: "/auth/login",
-    tags: ["Auth"],
-    summary: "Login user",
+    summary: "Login a user",
     requestBody: {
         content: {
             "application/json": {
-                schema: registry.register("LoginSchema", LoginSchema),
+                schema: { $ref: registry.register("LoginSchema", LoginSchema) },
             },
         },
     },
-    responses: { 200: { description: "Login successful" } },
+    responses: { 200: { description: "User logged in successfully" } },
 });
 
 registry.registerPath({
     method: "post",
     path: "/auth/change-password",
-    tags: ["Auth"],
     summary: "Change user password",
     requestBody: {
         content: {
             "application/json": {
-                schema: registry.register("ChangePasswordSchema", ChangePasswordSchema),
+                schema: {
+                    $ref: registry.register(
+                        "ChangePasswordSchema",
+                        ChangePasswordSchema
+                    ),
+                },
             },
         },
     },
-    responses: { 200: { description: "Password changed" } },
+    responses: { 200: { description: "Password changed successfully" } },
 });
 
 router.post("/register", register);
 router.post("/login", login);
-router.post("/change-password", authMiddleware, changePassword);
+router.post("/change-password", changePassword);
 
 export default router;

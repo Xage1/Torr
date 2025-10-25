@@ -1,29 +1,29 @@
 import express from "express";
-import { registry } from "../docs/registry.js";
-import { authMiddleware } from "../middleware/authMiddleware.js";
-import { getUserProfile, updateUserProfile, deleteUserAccount } from "../controllers/userController.js";
+import {
+    getUserProfile,
+    updateUserProfile,
+    deleteUserAccount,
+} from "../controllers/userController.js";
+import { registry } from "../config/openapi.js";
 import { UpdateUserSchema } from "../schemas/userSchemas.js";
 
 const router = express.Router();
-router.use(authMiddleware);
 
 registry.registerPath({
     method: "get",
     path: "/users/me",
-    tags: ["User"],
     summary: "Get user profile",
-    responses: { 200: { description: "Profile fetched" } },
+    responses: { 200: { description: "User profile details" } },
 });
 
 registry.registerPath({
     method: "put",
     path: "/users/me",
-    tags: ["User"],
     summary: "Update user profile",
     requestBody: {
         content: {
             "application/json": {
-                schema: registry.register("UpdateUserSchema", UpdateUserSchema),
+                schema: { $ref: registry.register("UpdateUserSchema", UpdateUserSchema) },
             },
         },
     },
@@ -32,14 +32,13 @@ registry.registerPath({
 
 registry.registerPath({
     method: "delete",
-    path: "/users/me",
-    tags: ["User"],
-    summary: "Delete user account",
-    responses: { 200: { description: "Account deleted" } },
+    path: "/users/{id}",
+    summary: "Delete a user",
+    responses: { 200: { description: "User deleted" } },
 });
 
 router.get("/me", getUserProfile);
 router.put("/me", updateUserProfile);
-router.delete("/me", deleteUserAccount);
+router.delete("/:id", deleteUserAccount);
 
 export default router;
