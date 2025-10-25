@@ -1,29 +1,45 @@
-import { Router } from "express";
-import {
-    listProducts,
-    getProduct,
-    createProduct,
-    updateProduct,
-    deleteProduct,
-} from "../controllers/productController";
-import { authMiddleware } from "../middleware/authMiddleware";
-import { roleMiddleware } from "../middleware/roleMiddleware";
+import express from "express";
+import { registry } from "../docs/registry.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+import { createProduct, updateProduct, listProducts, getProduct } from "../controllers/productController.js";
+import { CreateProductSchema, UpdateProductSchema } from "../schemas/productSchemas.js";
 
-const router = Router();
+const router = express.Router();
+router.use(authMiddleware);
 
-/**
- * Public
- */
+registry.registerPath({
+    method: "post",
+    path: "/products",
+    tags: ["Products"],
+    summary: "Create product",
+    requestBody: {
+        content: {
+            "application/json": {
+                schema: registry.register("CreateProductSchema", CreateProductSchema),
+            },
+        },
+    },
+    responses: { 201: { description: "Product created" } },
+});
+
+registry.registerPath({
+    method: "put",
+    path: "/products/{id}",
+    tags: ["Products"],
+    summary: "Update product",
+    requestBody: {
+        content: {
+            "application/json": {
+                schema: registry.register("UpdateProductSchema", UpdateProductSchema),
+            },
+        },
+    },
+    responses: { 200: { description: "Updated" } },
+});
 
 router.get("/", listProducts);
 router.get("/:id", getProduct);
-
-/**
- * Admin-only
- */
-
-router.post("/", authMiddleware, roleMiddleware("ADMIN"), createProduct);
-router.put("/:id", authMiddleware, roleMiddleware("ADMIN"), updateProduct);
-router.delete("/:id", authMiddleware, roleMiddleware("ADMIN"), deleteProduct);
+router.post("/", createProduct);
+router.put("/:id", updateProduct);
 
 export default router;

@@ -1,19 +1,18 @@
+// src/schemas/userSchemas.ts
 import { z } from "../config/openapi.js";
-import { email } from "zod";
 
 export const UserSchema = z.object({
-    id: z.string().uuid(),
+    id: z.number().int().positive().openapi({ example: 1 }),
     name: z.string(),
     email: z.string().email(),
-    role: z.enum(["CLIENT", "PROVIDER", "ADMIN"]),
-    isActive: z.boolean(),
-});
+    phone: z.string().optional(),
+    role: z.enum(["ADMIN", "CUSTOMER"]),
+    createdAt: z.string().datetime().optional(),
+}).openapi("User");
 
-export const CreateUserSchema = UserSchema.omit({ id: true });
-export const UpdateUserSchema = UserSchema.partial();
+export const UpdateUserSchema = z.object({
+    name: z.string().optional(),
+    phone: z.string().optional(),
+}).openapi("UpdateUser");
 
-export default {
-    UserSchema,
-    CreateUserSchema,
-    UpdateUserSchema,
-};
+export default { UserSchema, UpdateUserSchema };

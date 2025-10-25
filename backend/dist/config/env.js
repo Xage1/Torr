@@ -1,12 +1,18 @@
 // src/config/env.ts
 import dotenv from "dotenv";
 dotenv.config();
-export const env = {
+const get = (k, fallback) => {
+    const v = process.env[k];
+    if (v === undefined)
+        return fallback;
+    return v;
+};
+const env = {
+    DATABASE_URL: get("DATABASE_URL", ""),
     NODE_ENV: process.env.NODE_ENV || "development",
-    PORT: parseInt(process.env.PORT || "4000", 10),
-    DATABASE_URL: process.env.DATABASE_URL || "",
-    JWT_SECRET: process.env.JWT_SECRET || "",
-    JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || "1d",
+    PORT: Number(get("PORT", "4000")),
+    JWT_SECRET: get("JWT_SECRET", "please-set-a-secret"),
+    JWT_EXPIRES_IN: get("JWT_EXPIRES_IN", "7d"),
 };
 export default env;
 //# sourceMappingURL=env.js.map

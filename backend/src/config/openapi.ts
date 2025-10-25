@@ -1,9 +1,8 @@
-import { z } from 'zod';
+// src/config/openapi.ts
+import { z } from "zod";
+import { extendZodWithOpenApi } from "@asteasolutions/zod-to-openapi";
 
-import { extendZodWithOpenApi } from '@asteasolutions/zod-to-openapi';
-
-
-// This patches z globally with OpenAPI methods
+// IMPORTANT: extend before importing/creating schemas that call .openapi()
 extendZodWithOpenApi(z);
 
 export { z };

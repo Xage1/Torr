@@ -1,61 +1,42 @@
 // src/middleware/authMiddleware.ts
 import { Request, Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
-import env from "../config/env";
-import prisma from "../config/prisma";
+import env from "../config/env.js";
+import prisma from "../config/prisma.js";
 
 export interface AuthUser {
     id: number;
     email: string;
-    role: string;
+    role: "ADMIN" | "CUSTOMER";
 }
 
 export interface AuthRequest extends Request {
     user?: AuthUser;
 }
 
-export async function authMiddleware(
-    req: AuthRequest,
-    res: Response,
-    next: NextFunction
-) {
+export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
     try {
         const header = req.header("Authorization");
         if (!header || !header.startsWith("Bearer ")) {
-            return res
-                .status(401)
-                .json({ success: false, message: "Authorization required" });
+            return res.status(401).json({ success: false, message: "Authorization required" });
         }
-
         const token = header.slice(7).trim();
         const secret = env.JWT_SECRET;
-        if (!secret) {
-            console.error("JWT_SECRET missing from env");
-            return res
-                .status(500)
-                .json({ success: false, message: "Server misconfiguration" });
-        }
+        if (!secret) return res.status(500).json({ success: false, message: "Server misconfigured" });
 
-        let decoded: string | JwtPayload;
+        let payload: string | JwtPayload;
         try {
-            decoded = jwt.verify(token, secret);
-        } catch {
-            return res
-                .status(401)
-                .json({ success: false, message: "Invalid or expired token" });
+            payload = jwt.verify(token, secret);
+        } catch (e) {
+            return res.status(401).json({ success: false, message: "Invalid or expired token" });
         }
-
-        if (!decoded || typeof decoded !== "object") {
-            return res
-                .status(401)
-                .json({ success: false, message: "Invalid token payload" });
+        if (!payload || typeof payload !== "object") {
+            return res.status(401).json({ success: false, message: "Invalid token payload" });
         }
-
-        const userId = Number((decoded as any).userId);
+        const maybeUserId = (payload as any).userId;
+        const userId = typeof maybeUserId === "string" ? Number(maybeUserId) : Number(maybeUserId);
         if (!userId || Number.isNaN(userId)) {
-            return res
-                .status(401)
-                .json({ success: false, message: "Invalid token payload (userId)" });
+            return res.status(401).json({ success: false, message: "Invalid token payload (userId)" });
         }
 
         const user = await prisma.user.findUnique({
@@ -63,38 +44,20 @@ export async function authMiddleware(
             select: { id: true, email: true, role: true },
         });
 
-        if (!user) {
-            return res
-                .status(401)
-                .json({ success: false, message: "Invalid or deleted user" });
-        }
+        if (!user) return res.status(401).json({ success: false, message: "Invalid token (user not found)" });
 
-        req.user = user;
+        req.user = { id: user.id, email: user.email, role: user.role as "ADMIN" | "CUSTOMER" };
         return next();
     } catch (err) {
-        console.error("authMiddleware error:", err);
-        return res
-            .status(500)
-            .json({ success: false, message: "Internal server error" });
+        console.error("authMiddleware error", err);
+        return res.status(500).json({ success: false, message: "Internal server error" });
     }
 }
 
-/**
- * Require a specific role to access route.
- * Example usage: router.get("/admin", requireRole("ADMIN"), handler)
- */
-export function requireRole(role: string) {
+export function requireRole(role: "ADMIN" | "CUSTOMER") {
     return (req: AuthRequest, res: Response, next: NextFunction) => {
-        if (!req.user) {
-            return res
-                .status(401)
-                .json({ success: false, message: "Unauthorized access" });
-        }
-        if (req.user.role !== role) {
-            return res
-                .status(403)
-                .json({ success: false, message: "Forbidden: insufficient permissions" });
-        }
+        if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
+        if (req.user.role !== role) return res.status(403).json({ success: false, message: "Forbidden" });
         next();
     };
 }

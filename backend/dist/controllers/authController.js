@@ -1,119 +1,73 @@
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import prisma from "../config/prisma.js";
-import env from "../config/env.js";
-import { z } from "../config/openapi.js";
-// --- SCHEMAS (for validation + Swagger use) ---
-export const RegisterSchema = z.object({
-    email: z.string().email(),
-    phone: z.string().min(7, "Invalid phone number"),
-    password: z.string().min(6, "Password must be at least 6 characters"),
-    name: z.string().min(2),
-});
-export const LoginSchema = z.object({
-    email: z.string().email(),
-    password: z.string(),
-});
-// --- ADMIN WHITELIST ---
-const ADMIN_WHITELIST = {
-    emails: ["admin@torr.com", "kennethdaxage@gmail.com"],
-    phones: ["+254700000000", "+254711111111"],
-};
-// --- CONTROLLER FUNCTIONS ---
+import { env } from "../config/env.js";
+import { RegisterSchema, LoginSchema, ChangePasswordSchema } from "../schemas/authSchemas.js";
+import { whitelist } from "../config/whitelist.js";
 export const register = async (req, res) => {
     try {
-        const parsed = RegisterSchema.safeParse(req.body);
-        if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid input",
-                error: parsed.error.issues,
-            });
-        }
-        const { email, phone, password, name } = parsed.data;
-        // Check if user exists
-        const existing = await prisma.user.findFirst({
-            where: { OR: [{ email }, { phone }] },
-        });
-        if (existing) {
-            return res
-                .status(409)
-                .json({ success: false, message: "User already exists" });
-        }
-        // Determine role based on whitelist
-        const role = ADMIN_WHITELIST.emails.includes(email) ||
-            ADMIN_WHITELIST.phones.includes(phone)
-            ? "ADMIN"
-            : "USER";
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
-        // Create user
+        const validated = RegisterSchema.parse(req.body);
+        const existing = await prisma.user.findUnique({ where: { email: validated.email } });
+        if (existing)
+            return res.status(400).json({ success: false, message: "Email already exists" });
+        const hashed = await bcrypt.hash(validated.password, 10);
+        // whitelist logic
+        const isAdmin = whitelist.emails.includes(validated.email) ||
+            (validated.phone && whitelist.phones.includes(validated.phone));
         const user = await prisma.user.create({
-            data: { name, email, phone, password: hashedPassword, role },
-            select: { id: true, name: true, email: true, phone: true, role: true },
+            data: {
+                name: validated.name,
+                email: validated.email,
+                passwordHash: hashed,
+                phone: validated.phone,
+                role: isAdmin ? "ADMIN" : "CUSTOMER",
+            },
         });
-        // Sign token
-        const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-            expiresIn: "7d",
-        });
-        return res.status(201).json({
-            success: true,
-            message: "User registered successfully",
-            data: { user, token },
-        });
+        const secret = env.JWT_SECRET;
+        const options = { expiresIn: env.JWT_EXPIRES_IN };
+        const token = jwt.sign({ userId: user.id }, secret, options);
+        return res.status(201).json({ success: true, data: { user, token } });
     }
     catch (err) {
-        console.error("Register error:", err);
-        return res
-            .status(500)
-            .json({ success: false, message: "Internal server error" });
+        return res.status(400).json({ success: false, message: err.message });
     }
 };
 export const login = async (req, res) => {
     try {
-        const parsed = LoginSchema.safeParse(req.body);
-        if (!parsed.success) {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid input",
-                error: parsed.error.issues,
-            });
-        }
-        const { email, password } = parsed.data;
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
-            return res
-                .status(404)
-                .json({ success: false, message: "User not found" });
-        }
-        const valid = await bcrypt.compare(password, user.password);
-        if (!valid) {
-            return res
-                .status(401)
-                .json({ success: false, message: "Invalid credentials" });
-        }
-        const token = jwt.sign({ userId: user.id }, env.JWT_SECRET, {
-            expiresIn: "7d",
-        });
-        return res.json({
-            success: true,
-            message: "Login successful",
-            data: {
-                token,
-                user: {
-                    id: user.id,
-                    name: user.name,
-                    email: user.email,
-                    role: user.role,
-                },
-            },
-        });
+        const validated = LoginSchema.parse(req.body);
+        const user = await prisma.user.findUnique({ where: { email: validated.email } });
+        if (!user)
+            return res.status(400).json({ success: false, message: "Invalid credentials" });
+        const ok = await bcrypt.compare(validated.password, user.passwordHash);
+        if (!ok)
+            return res.status(400).json({ success: false, message: "Invalid credentials" });
+        const secret = env.JWT_SECRET;
+        const options = { expiresIn: env.JWT_EXPIRES_IN };
+        const token = jwt.sign({ userId: user.id }, secret, options);
+        return res.json({ success: true, data: { user, token } });
     }
     catch (err) {
-        console.error("Login error:", err);
-        return res
-            .status(500)
-            .json({ success: false, message: "Internal server error" });
+        return res.status(400).json({ success: false, message: err.message });
+    }
+};
+export const changePassword = async (req, res) => {
+    try {
+        const validated = ChangePasswordSchema.parse(req.body);
+        const userId = req.user?.id;
+        if (!userId)
+            return res.status(401).json({ success: false, message: "Unauthorized" });
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            return res.status(404).json({ success: false, message: "User not found" });
+        const match = await bcrypt.compare(validated.oldPassword, user.passwordHash);
+        if (!match)
+            return res.status(400).json({ success: false, message: "Old password incorrect" });
+        const newHash = await bcrypt.hash(validated.newPassword, 10);
+        await prisma.user.update({ where: { id: userId }, data: { passwordHash: newHash } });
+        return res.json({ success: true, message: "Password changed successfully" });
+    }
+    catch (err) {
+        return res.status(400).json({ success: false, message: err.message });
     }
 };
 //# sourceMappingURL=authController.js.map

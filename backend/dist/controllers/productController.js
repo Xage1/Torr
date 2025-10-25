@@ -1,192 +1,87 @@
-import prisma from "../config/prisma";
-import { success, fail } from "../utils/response";
-import { createProductSchema, updateProductSchema, listProductsSchema } from "../validators/productValidators";
-/**
- * GET /api/products
- * Supports: q, category, minPrice, maxPrice, sortBy, sortOrder, page, limit
- */
-export async function listProducts(req, res) {
+import prisma from "../config/prisma.js";
+export const listProducts = async (req, res) => {
+    const q = String(req.query.q ?? "").trim();
+    const page = Math.max(1, Number(req.query.page ?? 1));
+    const limit = Math.min(100, Number(req.query.limit ?? 20));
+    const skip = (page - 1) * limit;
+    const where = {};
+    if (q)
+        where.OR = [{ title: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }];
+    if (req.query.category)
+        where.category = String(req.query.category);
+    const [items, total] = await Promise.all([
+        prisma.product.findMany({ where, skip, take: limit, orderBy: { createdAt: "desc" } }),
+        prisma.product.count({ where }),
+    ]);
+    return res.json({ success: true, data: { items, meta: { total, page, limit, pages: Math.ceil(total / limit) } } });
+};
+export const getProduct = async (req, res) => {
+    const id = Number(req.params.id);
+    if (!id)
+        return res.status(400).json({ success: false, message: "Invalid id" });
+    const p = await prisma.product.findUnique({ where: { id } });
+    if (!p)
+        return res.status(404).json({ success: false, message: "Product not found" });
+    return res.json({ success: true, data: p });
+};
+export const createProduct = async (req, res) => {
     try {
-        const parsed = listProductsSchema.parse(req.query);
-        const where = {};
-        if (parsed.q) {
-            // simple full-text-like search across title and description
-            where.OR = [
-                { title: { contains: parsed.q, mode: "insensitive" } },
-                { description: { contains: parsed.q, mode: "insensitive" } }
-            ];
-        }
-        if (parsed.category) {
-            where.category = parsed.category;
-        }
-        if (parsed.minPrice !== null && parsed.minPrice !== undefined) {
-            where.price = { ...(where.price ?? {}), gte: parsed.minPrice };
-        }
-        if (parsed.maxPrice !== null && parsed.maxPrice !== undefined) {
-            where.price = { ...(where.price ?? {}), lte: parsed.maxPrice };
-        }
-        // pagination
-        const page = Math.max(1, Number(parsed.page) || 1);
-        const limit = Math.min(100, Math.max(1, Number(parsed.limit) || 20));
-        const skip = (page - 1) * limit;
-        // sorting
-        const orderBy = { [parsed.sortBy]: parsed.sortOrder };
-        const [items, total] = await Promise.all([
-            prisma.product.findMany({
-                where,
-                orderBy,
-                skip,
-                take: limit,
-                select: {
-                    id: true,
-                    title: true,
-                    description: true,
-                    price: true,
-                    stock: true,
-                    category: true,
-                    imageUrls: true,
-                    source: true,
-                    externalId: true,
-                    createdAt: true,
-                    updatedAt: true
-                }
-            }),
-            prisma.product.count({ where })
-        ]);
-        return res.json(success({
-            items,
-            meta: {
-                total,
-                page,
-                limit,
-                pages: Math.ceil(total / limit)
-            }
-        }));
-    }
-    catch (err) {
-        if (err?.issues) {
-            return res.status(400).json(fail("Validation failed", err.issues));
-        }
-        console.error(err);
-        return res.status(500).json(fail("Failed to list products", err?.message || err));
-    }
-}
-/**
- * GET /api/products/:id
- */
-export async function getProduct(req, res) {
-    try {
-        const id = Number(req.params.id);
-        if (!id)
-            return res.status(400).json(fail("Invalid product id"));
-        const product = await prisma.product.findUnique({
-            where: { id },
-            select: {
-                id: true,
-                title: true,
-                description: true,
-                price: true,
-                stock: true,
-                category: true,
-                imageUrls: true,
-                source: true,
-                externalId: true,
-                createdAt: true,
-                updatedAt: true
-            }
-        });
-        if (!product)
-            return res.status(404).json(fail("Product not found"));
-        return res.json(success(product));
-    }
-    catch (err) {
-        console.error(err);
-        return res.status(500).json(fail("Failed to fetch product"));
-    }
-}
-/**
- * POST /api/products
- * Admin only
- */
-export async function createProduct(req, res) {
-    try {
-        const parsed = createProductSchema.parse(req.body);
-        const product = await prisma.product.create({
+        const body = req.body;
+        // basic validation
+        if (!body.title || typeof body.price !== "number")
+            return res.status(400).json({ success: false, message: "Invalid input" });
+        const created = await prisma.product.create({
             data: {
-                title: parsed.title,
-                description: parsed.description ?? null,
-                price: parsed.price,
-                stock: parsed.stock ?? 0,
-                category: parsed.category ?? null,
-                source: parsed.source ?? "MANUAL",
-                externalId: parsed.externalId ?? null,
-                imageUrls: parsed.imageUrls ?? []
+                title: body.title,
+                description: body.description ?? null,
+                price: body.price,
+                stock: body.stock ?? 0,
+                category: body.category ?? null,
+                source: body.source ?? "MANUAL",
+                externalId: body.externalId ?? null,
+                imageUrls: body.imageUrls ?? []
             }
         });
-        return res.status(201).json(success(product, "Product created"));
+        return res.status(201).json({ success: true, data: created });
     }
     catch (err) {
-        if (err?.issues) {
-            return res.status(400).json(fail("Validation failed", err.issues));
-        }
         console.error(err);
-        return res.status(500).json(fail("Failed to create product", err?.message || err));
+        return res.status(500).json({ success: false, message: "Failed to create product" });
     }
-}
-/**
- * PUT /api/products/:id
- * Admin only
- */
-export async function updateProduct(req, res) {
+};
+export const updateProduct = async (req, res) => {
     try {
         const id = Number(req.params.id);
         if (!id)
-            return res.status(400).json(fail("Invalid product id"));
-        const parsed = updateProductSchema.parse(req.body);
+            return res.status(400).json({ success: false, message: "Invalid id" });
+        const body = req.body;
         const existing = await prisma.product.findUnique({ where: { id } });
         if (!existing)
-            return res.status(404).json(fail("Product not found"));
+            return res.status(404).json({ success: false, message: "Not found" });
         const updated = await prisma.product.update({
-            where: { id },
-            data: {
-                title: parsed.title ?? existing.title,
-                description: parsed.description ?? existing.description,
-                price: parsed.price ?? existing.price,
-                stock: parsed.stock ?? existing.stock,
-                category: parsed.category ?? existing.category,
-                source: parsed.source ?? existing.source,
-                externalId: parsed.externalId ?? existing.externalId,
-                imageUrls: parsed.imageUrls ?? existing.imageUrls
+            where: { id }, data: {
+                title: body.title ?? existing.title,
+                description: body.description ?? existing.description,
+                price: body.price ?? Number(existing.price),
+                stock: body.stock ?? existing.stock,
+                category: body.category ?? existing.category,
+                source: body.source ?? existing.source,
+                externalId: body.externalId ?? existing.externalId,
+                imageUrls: body.imageUrls ?? existing.imageUrls
             }
         });
-        return res.json(success(updated, "Product updated"));
-    }
-    catch (err) {
-        if (err?.issues) {
-            return res.status(400).json(fail("Validation failed", err.issues));
-        }
-        console.error(err);
-        return res.status(500).json(fail("Failed to update product", err?.message || err));
-    }
-}
-/**
- * DELETE /api/products/:id
- * Admin only
- */
-export async function deleteProduct(req, res) {
-    try {
-        const id = Number(req.params.id);
-        if (!id)
-            return res.status(400).json(fail("Invalid product id"));
-        const existing = await prisma.product.findUnique({ where: { id } });
-        if (!existing)
-            return res.status(404).json(fail("Product not found"));
-        await prisma.product.delete({ where: { id } });
-        return res.json(success(null, "Product deleted"));
+        return res.json({ success: true, data: updated });
     }
     catch (err) {
         console.error(err);
-        return res.status(500).json(fail("Failed to delete product"));
+        return res.status(500).json({ success: false, message: "Failed to update product" });
     }
-}
+};
+export const deleteProduct = async (req, res) => {
+    const id = Number(req.params.id);
+    if (!id)
+        return res.status(400).json({ success: false, message: "Invalid id" });
+    await prisma.product.delete({ where: { id } });
+    return res.json({ success: true, message: "Deleted" });
+};
 //# sourceMappingURL=productController.js.map

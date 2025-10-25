@@ -1,21 +1,17 @@
-import app from "./app";
-import env from "./config/env";
-import prisma from "./config/prisma";
-import { z } from "./config/openapi.js";
+// src/server.ts
+import app from "./app.js";
+import prisma from "./config/prisma.js";
+import env from "./config/env.js";
 const port = env.PORT || 4000;
-async function start() {
+(async function start() {
     try {
         await prisma.$connect();
         console.log("Connected to Postgres via Prisma");
-        app.listen(port, () => {
-            console.log(`Server listening on port ${port}`);
-        });
+        app.listen(port, () => console.log(`Server listening on port ${port}`));
     }
     catch (err) {
-        console.error("Failed to start server", err);
+        console.error("Failed to start:", err);
         process.exit(1);
     }
-}
-console.log("✅ zod-to-openapi patched:", typeof z.string().openapi);
-start();
+})();
 //# sourceMappingURL=server.js.map

@@ -1,117 +1,71 @@
 import prisma from "../config/prisma.js";
-import { CreateOrderSchema } from "../schemas/orderSchemas.js";
-import { ZodError } from "zod";
-/**
- * Create a new order
- */
 export const createOrder = async (req, res) => {
     try {
-        const validated = CreateOrderSchema.parse(req.body);
-        if (!req.user || !req.user.id) {
+        const auth = req;
+        if (!auth.user?.id)
             return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
+        const { items } = req.body;
+        if (!Array.isArray(items) || items.length === 0)
+            return res.status(400).json({ success: false, message: "No items" });
+        // compute total & record OrderItems
+        const total = items.reduce((acc, it) => acc + Number(it.price || 0) * Number(it.quantity || 0), 0);
         const order = await prisma.order.create({
             data: {
-                userId: req.user.id,
-                items: {
-                    createMany: { data: validated.items },
-                },
-                totalAmount: validated.totalAmount,
+                userId: auth.user.id,
                 status: "PENDING",
+                total,
             },
-            include: { items: true },
         });
-        res.status(201).json({ success: true, data: order });
+        // create order items
+        for (const it of items) {
+            await prisma.orderItem.create({
+                data: {
+                    orderId: order.id,
+                    productId: Number(it.productId),
+                    quantity: Number(it.quantity),
+                    price: Number(it.price || 0),
+                },
+            });
+        }
+        const created = await prisma.order.findUnique({ where: { id: order.id }, include: { OrderItem: true } });
+        return res.status(201).json({ success: true, data: created });
     }
     catch (err) {
-        if (err instanceof ZodError) {
-            return res.status(400).json({ success: false, message: err.errors });
-        }
-        res.status(500).json({ success: false, message: err.message });
+        console.error(err);
+        return res.status(500).json({ success: false, message: err?.message || "Failed to create order" });
     }
 };
-/**
- * Get all orders for the authenticated user
- */
 export const getAllOrders = async (req, res) => {
-    try {
-        if (!req.user || !req.user.id) {
-            return res.status(401).json({ success: false, message: "Unauthorized" });
-        }
-        const orders = await prisma.order.findMany({
-            where: { userId: req.user.id },
-            include: { items: true },
-            orderBy: { createdAt: "desc" },
-        });
-        res.json({ success: true, data: orders });
-    }
-    catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
+    const auth = req;
+    if (!auth.user?.id)
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+    const orders = await prisma.order.findMany({ where: { userId: auth.user.id }, include: { OrderItem: true } });
+    return res.json({ success: true, data: orders });
 };
-/**
- * Get a specific order by ID
- */
 export const getOrderById = async (req, res) => {
-    try {
-        const { orderId } = req.params;
-        const order = await prisma.order.findUnique({
-            where: { id: orderId },
-            include: { items: true },
-        });
-        if (!order) {
-            return res.status(404).json({ success: false, message: "Order not found" });
-        }
-        if (req.user?.id !== order.userId && req.user?.role !== "ADMIN") {
-            return res.status(403).json({ success: false, message: "Forbidden" });
-        }
-        res.json({ success: true, data: order });
-    }
-    catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
+    const id = Number(req.params.orderId);
+    if (!id)
+        return res.status(400).json({ success: false, message: "Invalid id" });
+    const order = await prisma.order.findUnique({ where: { id }, include: { OrderItem: true, Payment: true } });
+    if (!order)
+        return res.status(404).json({ success: false, message: "Not found" });
+    return res.json({ success: true, data: order });
 };
-/**
- * Update order status (ADMIN only)
- */
 export const updateOrderStatus = async (req, res) => {
-    try {
-        if (req.user?.role !== "ADMIN") {
-            return res.status(403).json({ success: false, message: "Forbidden" });
-        }
-        const { orderId } = req.params;
-        const validated = UpdateOrderStatusSchema.parse(req.body);
-        const updated = await prisma.order.update({
-            where: { id: orderId },
-            data: { status: validated.status },
-        });
-        res.json({ success: true, data: updated });
-    }
-    catch (err) {
-        if (err instanceof ZodError) {
-            return res.status(400).json({ success: false, message: err.errors });
-        }
-        res.status(500).json({ success: false, message: err.message });
-    }
+    const id = Number(req.params.orderId);
+    const { status } = req.body;
+    if (!id)
+        return res.status(400).json({ success: false, message: "Invalid id" });
+    if (!["PENDING", "PAID", "SHIPPED", "CANCELLED"].includes(status))
+        return res.status(400).json({ success: false, message: "Invalid status" });
+    const updated = await prisma.order.update({ where: { id }, data: { status } });
+    return res.json({ success: true, data: updated });
 };
-/**
- * Delete an order (owner or admin)
- */
 export const deleteOrder = async (req, res) => {
-    try {
-        const { orderId } = req.params;
-        const order = await prisma.order.findUnique({ where: { id: orderId } });
-        if (!order) {
-            return res.status(404).json({ success: false, message: "Order not found" });
-        }
-        if (req.user?.id !== order.userId && req.user?.role !== "ADMIN") {
-            return res.status(403).json({ success: false, message: "Forbidden" });
-        }
-        await prisma.order.delete({ where: { id: orderId } });
-        res.json({ success: true, message: "Order deleted successfully" });
-    }
-    catch (err) {
-        res.status(500).json({ success: false, message: err.message });
-    }
+    const id = Number(req.params.orderId);
+    if (!id)
+        return res.status(400).json({ success: false, message: "Invalid id" });
+    await prisma.order.delete({ where: { id } });
+    return res.json({ success: true, message: "Deleted" });
 };
 //# sourceMappingURL=orderController.js.map

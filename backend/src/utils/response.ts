@@ -1,11 +1,7 @@
-export function success(data: any, message = "Ok") {
-    return {
-        status: "success",
-        message,
-        data,
-    };
+// src/utils/response.ts
+export function success(data: any = null, message = "OK") {
+    return { success: true, message, data };
 }
-
-export function fail(message = "Failed", errors: any = null) {
-    return { success: false, message, errors };
+export function fail(message = "Error", data: any = null) {
+    return { success: false, message, data };
 }
