@@ -64,3 +64,5 @@ registry.registerPath({
 });
 
 authRouter.post("/change-password", changePassword);
+
+export default authRouter;

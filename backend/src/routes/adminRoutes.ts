@@ -55,3 +55,5 @@ registry.registerPath({
   responses: { 200: { description: "Stats returned" } },
 });
 adminRouter.get("/stats", systemStats);
+
+export default adminRouter;

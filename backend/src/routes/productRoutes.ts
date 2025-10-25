@@ -71,3 +71,5 @@ registry.registerPath({
   responses: { 200: { description: "Product deleted" } },
 });
 productRouter.delete("/:id", deleteProduct);
+
+export default productRouter;

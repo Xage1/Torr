@@ -65,3 +65,5 @@ registry.registerPath({
   responses: { 200: { description: "Order deleted" } },
 });
 orderRouter.delete("/:orderId", deleteOrder);
+
+export default orderRouter;
