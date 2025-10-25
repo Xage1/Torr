@@ -40,4 +40,5 @@ registry.registerPath({
     responses: { 200: { description: "List of payments" } },
 });
 paymentRouter.get("/", getUserPayments);
+export default paymentRouter;
 //# sourceMappingURL=paymentRoutes.js.map

@@ -47,4 +47,5 @@ registry.registerPath({
     responses: { 200: { description: "Password changed" } },
 });
 authRouter.post("/change-password", changePassword);
+export default authRouter;
 //# sourceMappingURL=authRoutes.js.map
