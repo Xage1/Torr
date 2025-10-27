@@ -63,6 +63,6 @@ registry.registerPath({
   responses: { 200: { description: "Password changed" } },
 });
 
-authRouter.post("/change-password", changePassword);
+authRouter.post("/change-password", changePassword as any);
 
 export default authRouter;

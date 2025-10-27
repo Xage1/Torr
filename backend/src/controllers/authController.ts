@@ -12,6 +12,35 @@ import {
 import { AuthRequest } from "../middleware/authMiddleware.js";
 
 // ─────────────────────────────────────────────
+// 🔧 Helper: Ensure whitelist consistency
+// ─────────────────────────────────────────────
+async function ensureWhitelistConsistency(email?: string, phone?: string) {
+  if (!email && !phone) return;
+
+  const existing = await prisma.whitelist.findFirst({
+    where: {
+      OR: [{ email: email || undefined }, { phone: phone || undefined }],
+    },
+  });
+
+  if (!existing) {
+    // Create new whitelist entry if none exists
+    await prisma.whitelist.create({
+      data: { email, phone },
+    });
+  } else {
+    // If one field missing, fill it in
+    await prisma.whitelist.update({
+      where: { id: existing.id },
+      data: {
+        email: existing.email ?? email,
+        phone: existing.phone ?? phone,
+      },
+    });
+  }
+}
+
+// ─────────────────────────────────────────────
 // 🧩 REGISTER
 // ─────────────────────────────────────────────
 export const register = async (req: Request, res: Response) => {
@@ -28,9 +57,7 @@ export const register = async (req: Request, res: Response) => {
 
     const hashed = await bcrypt.hash(validated.password, 10);
 
-    // ─────────────────────────────────────────────
     // 🔍 Check whitelist table for email or phone
-    // ─────────────────────────────────────────────
     const whitelisted = await prisma.whitelist.findFirst({
       where: {
         OR: [
@@ -42,9 +69,7 @@ export const register = async (req: Request, res: Response) => {
 
     const isAdmin = !!whitelisted;
 
-    // ─────────────────────────────────────────────
-    // 👑 Create the user
-    // ─────────────────────────────────────────────
+    // 👑 Create user
     const user = await prisma.user.create({
       data: {
         name: validated.name,
@@ -55,42 +80,12 @@ export const register = async (req: Request, res: Response) => {
       },
     });
 
-    // ─────────────────────────────────────────────
     // 🧠 Enrich whitelist dynamically if needed
-    // If one field was whitelisted but not the other → store both
-    // ─────────────────────────────────────────────
     if (isAdmin) {
-      const alreadyExists = await prisma.whitelist.findFirst({
-        where: {
-          OR: [
-            { email: validated.email },
-            { phone: validated.phone || undefined },
-          ],
-        },
-      });
-
-      if (!alreadyExists) {
-        await prisma.whitelist.create({
-          data: {
-            email: validated.email,
-            phone: validated.phone,
-          },
-        });
-      } else {
-        // If one is missing, update the record
-        await prisma.whitelist.update({
-          where: { id: alreadyExists.id },
-          data: {
-            email: alreadyExists.email ?? validated.email,
-            phone: alreadyExists.phone ?? validated.phone,
-          },
-        });
-      }
+      await ensureWhitelistConsistency(validated.email, validated.phone);
     }
 
-    // ─────────────────────────────────────────────
     // 🎟️ Generate JWT
-    // ─────────────────────────────────────────────
     const secret: Secret = env.JWT_SECRET!;
     const options: SignOptions = { expiresIn: env.JWT_EXPIRES_IN as any };
     const token = jwt.sign({ userId: user.id }, secret, options);
@@ -130,6 +125,7 @@ export const login = async (req: Request, res: Response) => {
 
     return res.json({ success: true, data: { user, token } });
   } catch (err: any) {
+    console.error("Login error:", err);
     return res
       .status(400)
       .json({ success: false, message: err.message || "Login failed" });
@@ -174,8 +170,12 @@ export const changePassword = async (req: AuthRequest, res: Response) => {
       message: "Password changed successfully",
     });
   } catch (err: any) {
+    console.error("Change password error:", err);
     return res
       .status(400)
-      .json({ success: false, message: err.message || "Failed to change password" });
+      .json({
+        success: false,
+        message: err.message || "Failed to change password",
+      });
   }
 };
