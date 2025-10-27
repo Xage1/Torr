@@ -78,6 +78,14 @@ model ScrapingJob {
   message String?
 }
 
+model Whitelist {
+  id        Int      @id @default(autoincrement())
+  email     String?  @unique
+  phone     String?  @unique
+  createdAt DateTime @default(now())
+}
+
+
 enum Role {
   ADMIN
   CUSTOMER
