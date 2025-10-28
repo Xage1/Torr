@@ -21,19 +21,19 @@ model User {
 }
 
 model Product {
-  id         Int      @id @default(autoincrement())
-  title      String
-  description String?
-  price      Decimal  @db.Decimal(12,2)
-  stock      Int      @default(0)
-  category   String?
-  source     String   @default("MANUAL")
-  externalId String?  
-  imageUrls  String[] @default([])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  OrderItem OrderItem[]
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String?
+  price        Decimal  @db.Decimal(12,2)
+  stock        Int      @default(0)
+  category     String?
+  source       String   @default("MANUAL")
+  externalId   String?  @unique    // make unique for safe upserts
+  link         String?             // optional: original link to Jiji
+  mainImage    String?             // local path to main image
+  imageUrls    String[]  @default([]) // local paths
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model Order {
