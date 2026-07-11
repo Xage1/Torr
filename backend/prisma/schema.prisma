@@ -8,17 +8,31 @@ datasource db {
 }
 
 model User {
-  id           Int     @id @default(autoincrement())
+  id           Int      @id @default(autoincrement())
   name         String
-  email        String  @unique
+  email        String   @unique
   passwordHash String
   phone        String?
-  role         Role    @default(CUSTOMER)
+  role         Role     @default(CUSTOMER)
+
+  // Account Status
+  verified         Boolean   @default(false)
+  failedAttempts   Int       @default(0)
+  lockedUntil      DateTime?
+  twoFactorEnabled Boolean   @default(false)
+  twoFactorSecret  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders Order[]
+  // Relations
+  orders             Order[]
+  RefreshTokens      RefreshToken[]
+  LoginSessions      LoginSession[]
+  AuditLogs          AuditLog[]
+  EmailVerifications EmailVerification[]
+
+  @@map("users")
 }
 
 model Product {
@@ -181,6 +195,110 @@ model Whitelist {
   phone String? @unique
 
   createdAt DateTime @default(now())
+}
+
+model RefreshToken {
+  id Int @id @default(autoincrement())
+
+  token String @unique
+
+  userId Int
+
+  user User @relation(fields:[userId],references:[id])
+
+  expiresAt DateTime
+
+  revoked Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model LoginSession {
+
+  id Int @id @default(autoincrement())
+
+  userId Int
+
+  user User @relation(fields:[userId],references:[id])
+
+  device String?
+
+  browser String?
+
+  os String?
+
+  ip String?
+
+  location String?
+
+  lastSeen DateTime @default(now())
+
+  refreshToken String?
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@map("login_sessions")
+}
+
+model AuditLog {
+
+  id Int @id @default(autoincrement())
+
+  userId Int?
+
+  user User? @relation(fields:[userId],references:[id])
+
+  action String
+
+  entity String?
+
+  entityId String?
+
+  ip String?
+
+  payload Json?
+
+  createdAt DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model PasswordReset {
+
+  id Int @id @default(autoincrement())
+
+  email String
+
+  token String @unique
+
+  expiresAt DateTime
+
+  used Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@map("password_resets")
+}
+
+model EmailVerification {
+
+  id Int @id @default(autoincrement())
+
+  userId Int
+
+  user User @relation(fields:[userId],references:[id])
+
+  token String @unique
+
+  expiresAt DateTime
+
+  verified Boolean @default(false)
+
+  @@map("email_verifications")
 }
 
 enum Role {
