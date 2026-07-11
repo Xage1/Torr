@@ -68,4 +68,3 @@ export const deleteOrder = async (req, res) => {
     await prisma.order.delete({ where: { id } });
     return res.json({ success: true, message: "Deleted" });
 };
-//# sourceMappingURL=orderController.js.map
