@@ -1,181 +1,394 @@
-// src/controllers/authController.ts
 import { Request, Response } from "express";
-import bcrypt from "bcrypt";
-import jwt, { Secret, SignOptions } from "jsonwebtoken";
-import prisma from "../config/prisma.js";
-import env from "../config/env.js";
-import {
-  RegisterSchema,
-  LoginSchema,
-  ChangePasswordSchema,
-} from "../schemas/authSchemas.js";
-import { AuthRequest } from "../middleware/authMiddleware.js";
+import * as authService from "../services/authService.js";
+import * as twoFactorService from "../services/twoFactorService.js";
+import * as sessionService from "../services/sessionService.js";
 
-// ─────────────────────────────────────────────
-// 🔧 Helper: Ensure whitelist consistency
-// ─────────────────────────────────────────────
-async function ensureWhitelistConsistency(email?: string, phone?: string) {
-  if (!email && !phone) return;
-
-  const existing = await prisma.whitelist.findFirst({
-    where: {
-      OR: [{ email: email || undefined }, { phone: phone || undefined }],
-    },
-  });
-
-  if (!existing) {
-    // Create new whitelist entry if none exists
-    await prisma.whitelist.create({
-      data: { email, phone },
-    });
-  } else {
-    // If one field missing, fill it in
-    await prisma.whitelist.update({
-      where: { id: existing.id },
-      data: {
-        email: existing.email ?? email,
-        phone: existing.phone ?? phone,
-      },
-    });
-  }
-}
-
-// ─────────────────────────────────────────────
-// 🧩 REGISTER
-// ─────────────────────────────────────────────
 export const register = async (req: Request, res: Response) => {
-  try {
-    const validated = RegisterSchema.parse(req.body);
+    try {
 
-    const existing = await prisma.user.findUnique({
-      where: { email: validated.email },
-    });
-    if (existing)
-      return res
-        .status(400)
-        .json({ success: false, message: "Email already exists" });
+        const user = await authService.register(req.body, req);
 
-    const hashed = await bcrypt.hash(validated.password, 10);
+        return res.status(201).json({
+            success: true,
+            message: "Registration successful. Please verify your email.",
+            data: user
+        });
 
-    // 🔍 Check whitelist table for email or phone
-    const whitelisted = await prisma.whitelist.findFirst({
-      where: {
-        OR: [
-          { email: validated.email },
-          { phone: validated.phone || undefined },
-        ],
-      },
-    });
+    } catch (err: any) {
 
-    const isAdmin = !!whitelisted;
+        console.error(err);
 
-    // 👑 Create user
-    const user = await prisma.user.create({
-      data: {
-        name: validated.name,
-        email: validated.email,
-        passwordHash: hashed,
-        phone: validated.phone,
-        role: isAdmin ? "ADMIN" : "CUSTOMER",
-      },
-    });
+        return res.status(400).json({
+            success: false,
+            message: err.message
+        });
 
-    // 🧠 Enrich whitelist dynamically if needed
-    if (isAdmin) {
-      await ensureWhitelistConsistency(validated.email, validated.phone);
+    }
+};
+
+export const login = async (req: Request, res: Response) => {
+
+    try {
+
+        const result = await authService.login(req.body, req);
+
+        return res.json({
+            success: true,
+            message: "Login successful.",
+            data: result
+        });
+
+    } catch (err: any) {
+
+        console.error(err);
+
+        return res.status(401).json({
+            success: false,
+            message: err.message
+        });
+
     }
 
-    // 🎟️ Generate JWT
-    const secret: Secret = env.JWT_SECRET!;
-    const options: SignOptions = { expiresIn: env.JWT_EXPIRES_IN as any };
-    const token = jwt.sign({ userId: user.id }, secret, options);
-
-    return res.status(201).json({ success: true, data: { user, token } });
-  } catch (err: any) {
-    console.error("Register error:", err);
-    return res
-      .status(400)
-      .json({ success: false, message: err.message || "Registration failed" });
-  }
 };
 
-// ─────────────────────────────────────────────
-// 🔑 LOGIN
-// ─────────────────────────────────────────────
-export const login = async (req: Request, res: Response) => {
-  try {
-    const validated = LoginSchema.parse(req.body);
-    const user = await prisma.user.findUnique({
-      where: { email: validated.email },
-    });
-    if (!user)
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid credentials" });
+export const logout = async (req: Request, res: Response) => {
 
-    const ok = await bcrypt.compare(validated.password, user.passwordHash);
-    if (!ok)
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid credentials" });
+    try {
 
-    const secret: Secret = env.JWT_SECRET!;
-    const options: SignOptions = { expiresIn: env.JWT_EXPIRES_IN as any };
-    const token = jwt.sign({ userId: user.id }, secret, options);
+        const auth = req as any;
 
-    return res.json({ success: true, data: { user, token } });
-  } catch (err: any) {
-    console.error("Login error:", err);
-    return res
-      .status(400)
-      .json({ success: false, message: err.message || "Login failed" });
-  }
+        await authService.logout(auth.session.id);
+
+        return res.json({
+
+            success: true,
+
+            message: "Logged out successfully."
+
+        });
+
+    } catch (err: any) {
+
+        console.error(err);
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
 };
 
-// ─────────────────────────────────────────────
-// 🔒 CHANGE PASSWORD
-// ─────────────────────────────────────────────
-export const changePassword = async (req: AuthRequest, res: Response) => {
-  try {
-    const validated = ChangePasswordSchema.parse(req.body);
-    const userId = req.user?.id;
-    if (!userId)
-      return res
-        .status(401)
-        .json({ success: false, message: "Unauthorized" });
+export const refresh = async (req: Request, res: Response) => {
 
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user)
-      return res
-        .status(404)
-        .json({ success: false, message: "User not found" });
+    try {
 
-    const match = await bcrypt.compare(
-      validated.oldPassword,
-      user.passwordHash
-    );
-    if (!match)
-      return res
-        .status(400)
-        .json({ success: false, message: "Old password incorrect" });
+        const token = req.body.refreshToken;
 
-    const newHash = await bcrypt.hash(validated.newPassword, 10);
-    await prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash: newHash },
-    });
+        const tokens = await authService.refresh(token);
 
-    return res.json({
-      success: true,
-      message: "Password changed successfully",
-    });
-  } catch (err: any) {
-    console.error("Change password error:", err);
-    return res
-      .status(400)
-      .json({
-        success: false,
-        message: err.message || "Failed to change password",
-      });
-  }
+        return res.json({
+
+            success: true,
+
+            data: tokens
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(401).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+
+    try {
+
+        await authService.forgotPassword(req.body.email);
+
+        return res.json({
+
+            success: true,
+
+            message: "Password reset email sent."
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+
+    try {
+
+        await authService.resetPassword(
+
+            req.body.token,
+
+            req.body.password
+
+        );
+
+        return res.json({
+
+            success: true,
+
+            message: "Password reset successful."
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(400).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+export const verifyEmail = async (req: Request, res: Response) => {
+
+    try {
+
+        await authService.verifyEmail(req.body.token);
+
+        return res.json({
+
+            success: true,
+
+            message: "Email verified successfully."
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(400).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+export const resendVerification = async (req: Request, res: Response) => {
+
+    try {
+
+        await authService.resendVerification(req.body.email);
+
+        return res.json({
+
+            success: true,
+
+            message: "Verification email sent."
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+export const enable2FA = async (req: Request, res: Response) => {
+
+    try {
+
+        const auth = req as any;
+
+        const data = await twoFactorService.enable(auth.user.id);
+
+        return res.json({
+
+            success: true,
+
+            data
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+export const verify2FA = async (req: Request, res: Response) => {
+
+    try {
+
+        const auth = req as any;
+
+        await twoFactorService.verify(
+
+            auth.user.id,
+
+            req.body.code
+
+        );
+
+        return res.json({
+
+            success: true,
+
+            message: "Two-factor authentication enabled."
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(400).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+export const getSessions = async (req: Request, res: Response) => {
+
+    try {
+
+        const auth = req as any;
+
+        const sessions = await sessionService.getUserSessions(auth.user.id);
+
+        return res.json({
+
+            success: true,
+
+            data: sessions
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+export const deleteSession = async (req: Request, res: Response) => {
+
+    try {
+
+        const auth = req as any;
+
+        await sessionService.deleteSession(
+
+            auth.user.id,
+
+            Number(req.params.id)
+
+        );
+
+        return res.json({
+
+            success: true,
+
+            message: "Session revoked."
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
+};
+
+export const deleteAllSessions = async (req: Request, res: Response) => {
+
+    try {
+
+        const auth = req as any;
+
+        await sessionService.deleteAllSessions(auth.user.id);
+
+        return res.json({
+
+            success: true,
+
+            message: "All sessions revoked."
+
+        });
+
+    } catch (err: any) {
+
+        return res.status(500).json({
+
+            success: false,
+
+            message: err.message
+
+        });
+
+    }
+
 };

@@ -7,6 +7,7 @@ import swaggerUi from "swagger-ui-express";
 import { OpenApiGeneratorV3 } from "@asteasolutions/zod-to-openapi";
 import { registry } from "./docs/registry.js";
 import router from "./routes/index.js"; // ✅ single router import
+
 import { errorHandler } from "./middleware/errorHandler.js";
 
 const app = express();

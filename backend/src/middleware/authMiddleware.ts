@@ -1,63 +1,86 @@
-// src/middleware/authMiddleware.ts
-import { Request, Response, NextFunction } from "express";
+import { RequestHandler } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
-import env from "../config/env.js";
 import prisma from "../config/prisma.js";
+import env from "../config/env.js";
 
-export interface AuthUser {
-    id: number;
-    email: string;
-    role: "ADMIN" | "CUSTOMER";
-}
+export const authenticate: RequestHandler = async (req, res, next) => {
 
-export interface AuthRequest extends Request {
-    user?: AuthUser;
-}
-
-export async function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-        const header = req.header("Authorization");
-        if (!header || !header.startsWith("Bearer ")) {
-            return res.status(401).json({ success: false, message: "Authorization required" });
-        }
-        const token = header.slice(7).trim();
-        const secret = env.JWT_SECRET;
-        if (!secret) return res.status(500).json({ success: false, message: "Server misconfigured" });
 
-        let payload: string | JwtPayload;
-        try {
-            payload = jwt.verify(token, secret);
-        } catch (e) {
-            return res.status(401).json({ success: false, message: "Invalid or expired token" });
+        const header = req.headers.authorization;
+
+        if (!header?.startsWith("Bearer ")) {
+            return res.status(401).json({
+                success: false,
+                message: "Authorization required"
+            });
         }
-        if (!payload || typeof payload !== "object") {
-            return res.status(401).json({ success: false, message: "Invalid token payload" });
-        }
-        const maybeUserId = (payload as any).userId;
-        const userId = typeof maybeUserId === "string" ? Number(maybeUserId) : Number(maybeUserId);
-        if (!userId || Number.isNaN(userId)) {
-            return res.status(401).json({ success: false, message: "Invalid token payload (userId)" });
-        }
+
+        const token = header.substring(7);
+
+        const payload = jwt.verify(
+            token,
+            env.JWT_SECRET
+        ) as JwtPayload;
 
         const user = await prisma.user.findUnique({
-            where: { id: userId },
-            select: { id: true, email: true, role: true },
+
+            where: {
+                id: Number(payload.userId)
+            },
+
+            select: {
+                id: true,
+                email: true,
+                role: true
+            }
+
         });
 
-        if (!user) return res.status(401).json({ success: false, message: "Invalid token (user not found)" });
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+        }
 
-        req.user = { id: user.id, email: user.email, role: user.role as "ADMIN" | "CUSTOMER" };
-        return next();
-    } catch (err) {
-        console.error("authMiddleware error", err);
-        return res.status(500).json({ success: false, message: "Internal server error" });
-    }
-}
+        req.user = user;
 
-export function requireRole(role: "ADMIN" | "CUSTOMER") {
-    return (req: AuthRequest, res: Response, next: NextFunction) => {
-        if (!req.user) return res.status(401).json({ success: false, message: "Unauthorized" });
-        if (req.user.role !== role) return res.status(403).json({ success: false, message: "Forbidden" });
         next();
+
+    } catch {
+
+        return res.status(401).json({
+            success: false,
+            message: "Invalid token"
+        });
+
+    }
+
+};
+
+export const authorize =
+    (...roles: ("ADMIN" | "CUSTOMER")[]): RequestHandler =>
+    (req, res, next) => {
+
+        if (!req.user) {
+
+            return res.status(401).json({
+                success: false,
+                message: "Unauthorized"
+            });
+
+        }
+
+        if (!roles.includes(req.user.role)) {
+
+            return res.status(403).json({
+                success: false,
+                message: "Forbidden"
+            });
+
+        }
+
+        next();
+
     };
-}

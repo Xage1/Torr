@@ -17,13 +17,18 @@ model User {
 
   // Account Status
   verified         Boolean   @default(false)
+  verifiedAt       DateTime?
+
   failedAttempts   Int       @default(0)
   lockedUntil      DateTime?
+
   twoFactorEnabled Boolean   @default(false)
   twoFactorSecret  String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  lastLoginAt      DateTime?
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   // Relations
   orders             Order[]
@@ -31,8 +36,36 @@ model User {
   LoginSessions      LoginSession[]
   AuditLogs          AuditLog[]
   EmailVerifications EmailVerification[]
+  PasswordResets     PasswordReset[]
 
   @@map("users")
+}
+
+model Session {
+
+  id Int @id @default(autoincrement())
+
+  userId Int
+
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+
+  refreshTokenHash String
+
+  device String?
+
+  ipAddress String?
+
+  userAgent String?
+
+  expiresAt DateTime
+
+  revoked Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+
+  @@map("sessions")
 }
 
 model Product {
