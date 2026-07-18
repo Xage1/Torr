@@ -1,5 +1,5 @@
 import { User, Order } from "@prisma/client";
-import { sendMail } from "../config/mail.js";
+import { sendMail } from "../config/mailer.js";
 
 import {
     verificationEmailTemplate,

@@ -8,27 +8,27 @@ datasource db {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
+  id           Int     @id @default(autoincrement())
   name         String
-  email        String   @unique
+  email        String  @unique
   passwordHash String
   phone        String?
-  role         Role     @default(CUSTOMER)
+  role         Role    @default(CUSTOMER)
 
   // Account Status
-  verified         Boolean   @default(false)
-  verifiedAt       DateTime?
+  verified   Boolean   @default(false)
+  verifiedAt DateTime?
 
-  failedAttempts   Int       @default(0)
-  lockedUntil      DateTime?
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
 
-  twoFactorEnabled Boolean   @default(false)
+  twoFactorEnabled Boolean @default(false)
   twoFactorSecret  String?
 
-  lastLoginAt      DateTime?
+  lastLoginAt DateTime?
 
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
   orders             Order[]
@@ -37,17 +37,17 @@ model User {
   AuditLogs          AuditLog[]
   EmailVerifications EmailVerification[]
   PasswordResets     PasswordReset[]
+  Session            Session[]
 
   @@map("users")
 }
 
 model Session {
-
   id Int @id @default(autoincrement())
 
   userId Int
 
-  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   refreshTokenHash String
 
@@ -237,7 +237,7 @@ model RefreshToken {
 
   userId Int
 
-  user User @relation(fields:[userId],references:[id])
+  user User @relation(fields: [userId], references: [id])
 
   expiresAt DateTime
 
@@ -249,12 +249,11 @@ model RefreshToken {
 }
 
 model LoginSession {
-
   id Int @id @default(autoincrement())
 
   userId Int
 
-  user User @relation(fields:[userId],references:[id])
+  user User @relation(fields: [userId], references: [id])
 
   device String?
 
@@ -278,12 +277,11 @@ model LoginSession {
 }
 
 model AuditLog {
-
   id Int @id @default(autoincrement())
 
   userId Int?
 
-  user User? @relation(fields:[userId],references:[id])
+  user User? @relation(fields: [userId], references: [id])
 
   action String
 
@@ -301,7 +299,6 @@ model AuditLog {
 }
 
 model PasswordReset {
-
   id Int @id @default(autoincrement())
 
   email String
@@ -313,17 +310,18 @@ model PasswordReset {
   used Boolean @default(false)
 
   createdAt DateTime @default(now())
+  User      User?    @relation(fields: [userId], references: [id])
+  userId    Int?
 
   @@map("password_resets")
 }
 
 model EmailVerification {
-
   id Int @id @default(autoincrement())
 
   userId Int
 
-  user User @relation(fields:[userId],references:[id])
+  user User @relation(fields: [userId], references: [id])
 
   token String @unique
 

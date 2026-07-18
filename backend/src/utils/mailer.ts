@@ -1,4 +1,4 @@
-import transporter from "../config/mail.js";
+import transporter from "../config/mailer.js";
 
 interface MailOptions {
     to: string;
